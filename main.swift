@@ -7,6 +7,8 @@ import ApplicationServices
 // Drag state
 var dragActive = false
 var dragStartMouse = CGPoint.zero
+var dragCurrentMouse = CGPoint.zero
+var dragPending = false
 var draggedElement: AXUIElement? = nil
 // Snapshots of non-dragged windows: (element, virtual position at drag start, size)
 var snapshots: [(AXUIElement, CGPoint, CGSize)] = []
@@ -14,6 +16,8 @@ var snapshots: [(AXUIElement, CGPoint, CGSize)] = []
 // Virtual canvas state — persists across drag gestures
 var virtualPositions: [CFHashCode: CGPoint] = [:]
 var parkedWindows: Set<CFHashCode> = []
+var clippedWindows: Set<CFHashCode> = []
+var originalSizes: [CFHashCode: CGSize] = [:]
 let parkingSpot = CGPoint(x: 100_000, y: 100_000)
 
 func windowsWithPositions() -> [(AXUIElement, CGPoint)] {
@@ -95,6 +99,38 @@ func isOnScreen(_ pos: CGPoint, size: CGSize) -> Bool {
     return false
 }
 
+// Returns the visible (pos, size) of a window clipped to the screen it overlaps most,
+// or nil if the window is entirely off-screen.
+func clippedFrame(virtualPos: CGPoint, size: CGSize) -> (CGPoint, CGSize)? {
+    let mainH = NSScreen.main!.frame.height
+    var bestArea: CGFloat = 0
+    var bestResult: (CGPoint, CGSize)? = nil
+
+    for screen in NSScreen.screens {
+        let vf = screen.frame
+        let sTop    = mainH - (vf.origin.y + vf.height)
+        let sBottom = mainH - vf.origin.y
+        let sLeft   = vf.origin.x
+        let sRight  = vf.origin.x + vf.width
+
+        let clipLeft   = max(virtualPos.x, sLeft)
+        let clipTop    = max(virtualPos.y, sTop)
+        let clipRight  = min(virtualPos.x + size.width, sRight)
+        let clipBottom = min(virtualPos.y + size.height, sBottom)
+
+        let w = clipRight - clipLeft
+        let h = clipBottom - clipTop
+        if w > 0 && h > 0 {
+            let area = w * h
+            if area > bestArea {
+                bestArea = area
+                bestResult = (CGPoint(x: clipLeft, y: clipTop), CGSize(width: w, height: h))
+            }
+        }
+    }
+    return bestResult
+}
+
 func windowsWithFrames() -> [(AXUIElement, CGPoint, CGSize)] {
     var result: [(AXUIElement, CGPoint, CGSize)] = []
     let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
@@ -153,11 +189,12 @@ func setupEventTap() {
                         let currentFrames = windowsWithFrames()
                         snapshots = currentFrames.map { (win, actualPos, size) in
                             let key = CFHash(win)
-                            if parkedWindows.contains(key) {
-                                return (win, virtualPositions[key] ?? actualPos, size)
+                            let origSize = originalSizes[key] ?? size
+                            if parkedWindows.contains(key) || clippedWindows.contains(key) {
+                                return (win, virtualPositions[key] ?? actualPos, origSize)
                             } else {
                                 virtualPositions[key] = actualPos
-                                return (win, actualPos, size)
+                                return (win, actualPos, origSize)
                             }
                         }
                         return nil
@@ -165,25 +202,48 @@ func setupEventTap() {
 
                 case .leftMouseDragged:
                     if dragActive && held {
-                        let loc = event.location
-                        let dx = loc.x - dragStartMouse.x
-                        let dy = loc.y - dragStartMouse.y
-                        let current = snapshots
-                        DispatchQueue.main.async {
-                            for (win, virtualOrigin, size) in current {
-                                let key = CFHash(win)
-                                let newVirtual = CGPoint(x: virtualOrigin.x + dx, y: virtualOrigin.y + dy)
-                                virtualPositions[key] = newVirtual
-                                if isOnScreen(newVirtual, size: size) {
-                                    parkedWindows.remove(key)
-                                    setPosition(win, to: newVirtual)
-                                } else if !parkedWindows.contains(key) {
-                                    parkedWindows.insert(key)
-                                    setPosition(win, to: parkingSpot)
+                        dragCurrentMouse = event.location
+                        if !dragPending {
+                            dragPending = true
+                            let current = snapshots
+                            let start = dragStartMouse
+                            DispatchQueue.main.async {
+                                dragPending = false
+                                let dx = dragCurrentMouse.x - start.x
+                                let dy = dragCurrentMouse.y - start.y
+                                for (win, virtualOrigin, size) in current {
+                                    let key = CFHash(win)
+                                    let newVirtual = CGPoint(x: virtualOrigin.x + dx, y: virtualOrigin.y + dy)
+                                    virtualPositions[key] = newVirtual
+
+                                    if let (clippedPos, clippedSize) = clippedFrame(virtualPos: newVirtual, size: size) {
+                                        parkedWindows.remove(key)
+                                        let needsClip = clippedSize.width < size.width - 0.5
+                                                     || clippedSize.height < size.height - 0.5
+                                        if needsClip {
+                                            if originalSizes[key] == nil { originalSizes[key] = size }
+                                            clippedWindows.insert(key)
+                                            setSize(win, to: clippedSize)
+                                            setPosition(win, to: clippedPos)
+                                        } else {
+                                            if clippedWindows.remove(key) != nil {
+                                                originalSizes.removeValue(forKey: key)
+                                                setSize(win, to: size)
+                                            }
+                                            setPosition(win, to: clippedPos)
+                                        }
+                                    } else if !parkedWindows.contains(key) {
+                                        if clippedWindows.remove(key) != nil {
+                                            originalSizes.removeValue(forKey: key)
+                                            setSize(win, to: size)
+                                        }
+                                        parkedWindows.insert(key)
+                                        setPosition(win, to: parkingSpot)
+                                    }
                                 }
                             }
                         }
-                        return nil 
+                        return nil
                     } else if !held {
                         dragActive = false
                     }
@@ -191,11 +251,13 @@ func setupEventTap() {
                 case .leftMouseUp:
                     if dragActive {
                         dragActive = false
+                        dragPending = false
                         snapshots = []
                         draggedElement = nil
                         return nil
                     }
                     dragActive = false
+                    dragPending = false
                     snapshots = []
                     draggedElement = nil
 
