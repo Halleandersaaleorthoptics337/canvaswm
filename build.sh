@@ -1,1 +1,1 @@
-swiftc -framework Cocoa -framework ApplicationServices -o tilewm main.swift
+swiftc -framework Cocoa -framework ApplicationServices -o canvaswm main.swift
