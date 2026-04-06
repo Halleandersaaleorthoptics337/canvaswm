@@ -190,7 +190,7 @@ func setupEventTap() {
                         snapshots = currentFrames.map { (win, actualPos, size) in
                             let key = CFHash(win)
                             let origSize = originalSizes[key] ?? size
-                            if parkedWindows.contains(key) || clippedWindows.contains(key) {
+                            if parkedWindows.contains(key) {
                                 return (win, virtualPositions[key] ?? actualPos, origSize)
                             } else {
                                 virtualPositions[key] = actualPos
